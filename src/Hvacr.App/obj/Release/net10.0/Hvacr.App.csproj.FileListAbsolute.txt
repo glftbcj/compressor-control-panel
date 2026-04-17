@@ -1,0 +1,11 @@
+C:\Users\GLFTB\Desktop\pj\1\cp\src\Hvacr.App\bin\Release\net10.0\Hvacr.App.deps.json
+C:\Users\GLFTB\Desktop\pj\1\cp\src\Hvacr.App\bin\Release\net10.0\Hvacr.App.dll
+C:\Users\GLFTB\Desktop\pj\1\cp\src\Hvacr.App\obj\Release\net10.0\Hvacr.App.csproj.AssemblyReference.cache
+C:\Users\GLFTB\Desktop\pj\1\cp\src\Hvacr.App\obj\Release\net10.0\Hvacr.App.EmbeddedFilesManifest.cache
+C:\Users\GLFTB\Desktop\pj\1\cp\src\Hvacr.App\obj\Release\net10.0\Hvacr.App.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\GLFTB\Desktop\pj\1\cp\src\Hvacr.App\obj\Release\net10.0\Hvacr.App.AssemblyInfoInputs.cache
+C:\Users\GLFTB\Desktop\pj\1\cp\src\Hvacr.App\obj\Release\net10.0\Hvacr.App.AssemblyInfo.cs
+C:\Users\GLFTB\Desktop\pj\1\cp\src\Hvacr.App\obj\Release\net10.0\Hvacr.App.csproj.CoreCompileInputs.cache
+C:\Users\GLFTB\Desktop\pj\1\cp\src\Hvacr.App\obj\Release\net10.0\Hvacr.App.dll
+C:\Users\GLFTB\Desktop\pj\1\cp\src\Hvacr.App\obj\Release\net10.0\refint\Hvacr.App.dll
+C:\Users\GLFTB\Desktop\pj\1\cp\src\Hvacr.App\obj\Release\net10.0\ref\Hvacr.App.dll

@@ -3,26 +3,61 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>压缩机局域网控制</title>
+  <title>压缩机控制面板</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main class="container">
-    <h1>压缩机局域网控制</h1>
+    <!-- 顶部 -->
+    <header class="top-bar">
+      <h1>压缩机控制面板</h1>
+      <div class="top-meta">
+        <div class="conn-wrap">
+          <span id="connectionDot"></span>
+          <span id="connectionStatus">MQTT：未知</span>
+        </div>
+        <span class="divider">|</span>
+        <span id="deviceCount">设备数量：0</span>
+      </div>
+    </header>
+
+    <!-- 数据监控 -->
+    <section class="metrics-row">
+      <div class="metric-card metric-temp">
+        <span class="metric-label">实时水温</span>
+        <div class="metric-body">
+          <span class="metric-value" id="currentTemp">--</span>
+          <span class="metric-unit">℃</span>
+        </div>
+      </div>
+      <div class="metric-card metric-set">
+        <span class="metric-label">设定温度</span>
+        <div class="metric-body">
+          <span class="metric-value" id="currentSetTemp">--</span>
+          <span class="metric-unit">℃</span>
+        </div>
+      </div>
+      <div class="metric-card metric-pump">
+        <span class="metric-label">水泵挡位</span>
+        <div class="metric-body">
+          <span class="metric-value" id="currentPumpSpeed">--</span>
+        </div>
+      </div>
+    </section>
 
     <!-- 设备管理 -->
     <section class="card device-management">
       <h2>设备管理</h2>
-      <div class="control-row">
+      <div class="control-row row-select">
         <label for="deviceSelect">选择设备</label>
         <select id="deviceSelect"></select>
       </div>
-      <div class="control-row">
+      <div class="control-row row-device-entry">
         <label for="deviceIdInput">设备ID</label>
         <input id="deviceIdInput" type="text" placeholder="请输入设备ID" autocomplete="off" />
         <button id="addDeviceBtn" class="secondary">添加设备</button>
       </div>
-      <div class="control-row">
+      <div class="control-row row-delete-action">
         <button id="deleteDeviceBtn" class="danger">删除选中设备</button>
       </div>
     </section>
@@ -30,26 +65,26 @@
     <!-- 控制面板 -->
     <section class="card control-panel">
       <h2>控制面板</h2>
-      <div class="control-row btn-pair">
+      <div class="control-row btn-pair row-power-actions">
         <button id="startBtn" class="primary">启动压缩机</button>
         <button id="stopBtn"  class="danger">停止压缩机</button>
       </div>
-      <div class="control-row">
+      <div class="control-row row-temperature">
         <label for="temperatureInput">设定温度 (℃)</label>
         <input id="temperatureInput" type="number" min="-20" max="50" step="1" value="18" />
         <button id="setTempBtn" class="secondary">设置温度</button>
       </div>
-      <div class="control-row pump-row">
+      <div class="control-row pump-row row-pump-adjust">
         <label for="pumpSpeedInput">水泵挡位</label>
         <div class="pump-control-group">
           <input id="pumpSpeedInput" type="range" min="0" max="10" value="5" />
           <span id="pumpSpeedValue">5</span>
         </div>
       </div>
-      <div class="control-row">
+      <div class="control-row row-pump-action">
         <button id="setPumpSpeedBtn" class="secondary">设置水泵挡位</button>
       </div>
-      <div class="control-row">
+      <div class="control-row row-refresh">
         <button id="refreshBtn" class="secondary">刷新状态</button>
       </div>
     </section>
@@ -57,14 +92,7 @@
     <!-- 设备状态 -->
     <section class="card status-card">
       <h2>设备状态</h2>
-      <div class="status-meta">
-        <div class="conn-wrap">
-          <span id="connectionDot"></span>
-          <span id="connectionStatus">MQTT：未知</span>
-        </div>
-        <span id="deviceCount">设备数量：0</span>
-      </div>
-      <pre id="statusOutput">正在加载…</pre>
+      <pre id="statusOutput" aria-live="polite">正在加载…</pre>
     </section>
   </main>
   <script src="app.js"></script>
