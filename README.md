@@ -15,9 +15,9 @@
   - 浏览器 localStorage
   - `%APPDATA%\HVACR\devices.json`
 - 桌面端使用 WebView2 Runtime，用户数据目录保存在 `%APPDATA%\HVACR\webview2\`。
-- Windows 桌面版可发布为单一 exe，当前构建结果为 [release]。
+- Windows 桌面版以单一 exe 形式分发；GitHub 仓库不公开 `desktop` 目录，桌面端请从 GitHub Releases 下载 `hvacr.exe`。
 
-## 技术结构
+## 公开仓库结构
 
 ```text
 src/
@@ -27,11 +27,12 @@ public/
   index.html        页面结构
   styles.css        样式
   app.js            前端逻辑（UI 保持原交互，内部实现已加固）
-desktop/
-  Hvacr.Desktop/    WinForms + WebView2 原生宿主
-  build.bat         单文件 exe 发布脚本
-  hvacr.exe         构建后的最终单文件产物
 ```
+
+说明：
+
+- GitHub 公开仓库主要包含 Web 端和共享后端源码。
+- Windows 桌面版在 GitHub 上不公开 `desktop` 目录源码，只在 Releases 提供编译后的 `hvacr.exe`。
 
 ## 运行方式
 
@@ -104,11 +105,11 @@ npm run dev
 - 已安装 WebView2 Runtime
 - 不要求安装或保留 Edge 浏览器程序
 
-直接运行最终产物：
+获取方式：
 
-- [desktop/hvacr.exe](desktop/hvacr.exe)
+- 进入 GitHub Releases 下载 `hvacr.exe`
 
-如果从源码启动桌面宿主：
+如果你在本地私有开发环境中保留了 `desktop` 目录，则仍可从源码调试桌面宿主：
 
 ```bash
 npm run desktop
@@ -119,9 +120,11 @@ npm run desktop
 | 模式 | 启动方式 | 运行时依赖 | 适用场景 |
 |------|----------|------------|----------|
 | 浏览器端 | `dotnet run` 或 `npm start` 后手动打开浏览器 | .NET 10 SDK、浏览器、可访问 MQTT Broker | 开发调试、局域网或本机操作 |
-| Windows 桌面版 | 直接运行 [desktop/hvacr.exe](desktop/hvacr.exe) 或 `npm run desktop` | WebView2 Runtime、可访问 MQTT Broker | 分发给 Windows 用户、获得更原生的窗口体验 |
+| Windows 桌面版 | 从 GitHub Releases 下载并运行 `hvacr.exe`；若本地私有环境保留 `desktop` 目录，也可使用 `npm run desktop` | WebView2 Runtime、可访问 MQTT Broker | 分发给 Windows 用户、获得更原生的窗口体验 |
 
 ## 构建与打包
+
+如果你只是 GitHub 仓库使用者，而不是本地私有构建环境维护者，那么桌面端不需要自行构建，直接从 GitHub Releases 下载 `hvacr.exe` 即可。
 
 ### 构建整个解决方案
 
@@ -129,7 +132,7 @@ npm run desktop
 npm run build
 ```
 
-### 生成单文件桌面 exe
+### 生成单文件桌面 exe（仅适用于本地保留 `desktop` 目录的构建环境）
 
 ```bash
 cmd /c desktop\build.bat
@@ -137,14 +140,14 @@ cmd /c desktop\build.bat
 
 构建结果：
 
-- 最终分发文件：[desktop/hvacr.exe](desktop/hvacr.exe)
-- 中间发布文件：[desktop/dist/Hvacr.Desktop.exe](desktop/dist/Hvacr.Desktop.exe)
+- 最终分发文件：`desktop\hvacr.exe`
+- 中间发布文件：`desktop\dist\Hvacr.Desktop.exe`
 
 当前验证结果：
 
 - 发布脚本已成功生成单一 exe。
 - 当前 `desktop/dist` 目录只包含一个 exe 文件。
-- 当前 [desktop/hvacr.exe](desktop/hvacr.exe) 体积约为 64.3 MB。
+- 当前 `desktop\hvacr.exe` 体积约为 64.3 MB。
 
 ## MQTT 协议
 
@@ -253,6 +256,7 @@ cmd /c desktop\build.bat
 
 - 浏览器端不是纯静态页面，必须先启动本地 HTTP 服务，然后再访问 `http://127.0.0.1:3000`。
 - 如果局域网其他设备仍然访问不到 `http://本机局域网IP:3000`，通常不是页面本身问题，而是 Windows 防火墙、路由隔离或不同网段导致的网络阻断。
+- GitHub 仓库公开内容不包含 `desktop` 目录；桌面端成品通过 Releases 分发，而不是通过仓库文件树直接下载。
 - WebView2 NuGet 包当前会引入一个 `WindowsBase` 版本冲突警告；当前不影响编译、发布和运行，但仍属于构建期噪音。
 - 单文件 exe 只消除了分发层面的多文件输出；运行时仍依赖目标机器已安装 WebView2 Runtime。
 - 当前已经通过真实遥测确认 `s6a34e3eccnd` 处于开启状态且 `set_temp=20`，但更长时间的温控稳定性验证仍建议在现场继续观察。

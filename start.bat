@@ -1,0 +1,1 @@
+dotnet run --project src/Hvacr.Server/Hvacr.Server.csproj
