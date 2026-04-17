@@ -15,7 +15,7 @@
   - 浏览器 localStorage
   - `%APPDATA%\HVACR\devices.json`
 - 桌面端使用 WebView2 Runtime，用户数据目录保存在 `%APPDATA%\HVACR\webview2\`。
-- Windows 桌面版可发布为单一 exe，当前构建结果为 [desktop/hvacr.exe](desktop/hvacr.exe)。
+- Windows 桌面版可发布为单一 exe，当前构建结果为 [release](release)。
 
 ## 技术结构
 
