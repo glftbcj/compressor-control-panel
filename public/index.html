@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>压缩机局域网控制</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>压缩机局域网控制</h1>
+
+    <!-- 设备管理 -->
+    <section class="card device-management">
+      <h2>设备管理</h2>
+      <div class="control-row">
+        <label for="deviceSelect">选择设备</label>
+        <select id="deviceSelect"></select>
+      </div>
+      <div class="control-row">
+        <label for="deviceIdInput">设备ID</label>
+        <input id="deviceIdInput" type="text" placeholder="请输入设备ID" autocomplete="off" />
+        <button id="addDeviceBtn" class="secondary">添加设备</button>
+      </div>
+      <div class="control-row">
+        <button id="deleteDeviceBtn" class="danger">删除选中设备</button>
+      </div>
+    </section>
+
+    <!-- 控制面板 -->
+    <section class="card control-panel">
+      <h2>控制面板</h2>
+      <div class="control-row btn-pair">
+        <button id="startBtn" class="primary">启动压缩机</button>
+        <button id="stopBtn"  class="danger">停止压缩机</button>
+      </div>
+      <div class="control-row">
+        <label for="temperatureInput">设定温度 (℃)</label>
+        <input id="temperatureInput" type="number" min="-20" max="50" step="1" value="18" />
+        <button id="setTempBtn" class="secondary">设置温度</button>
+      </div>
+      <div class="control-row pump-row">
+        <label for="pumpSpeedInput">水泵挡位</label>
+        <div class="pump-control-group">
+          <input id="pumpSpeedInput" type="range" min="0" max="10" value="5" />
+          <span id="pumpSpeedValue">5</span>
+        </div>
+      </div>
+      <div class="control-row">
+        <button id="setPumpSpeedBtn" class="secondary">设置水泵挡位</button>
+      </div>
+      <div class="control-row">
+        <button id="refreshBtn" class="secondary">刷新状态</button>
+      </div>
+    </section>
+
+    <!-- 设备状态 -->
+    <section class="card status-card">
+      <h2>设备状态</h2>
+      <div class="status-meta">
+        <div class="conn-wrap">
+          <span id="connectionDot"></span>
+          <span id="connectionStatus">MQTT：未知</span>
+        </div>
+        <span id="deviceCount">设备数量：0</span>
+      </div>
+      <pre id="statusOutput">正在加载…</pre>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
