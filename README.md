@@ -42,7 +42,7 @@ public/
 
 - 源码运行需要已安装 .NET 10 SDK。
 - 当前默认 MQTT Broker 为 `mqtt://www.cndq.xyz:1883`，需要本机能访问外网 MQTT 环境。
-- 需要提前知道有效设备 ID，例如 `s6a34e3eccnd`。
+- 需要提前知道有效设备 ID，例如 ``。
 - 只想使用浏览器端时，不要求安装 Node.js；`npm start` 只是对 `dotnet run` 的一层包装。
 
 启动方式：
@@ -80,7 +80,7 @@ http://192.168.50.152:3000
 1. 在项目根目录启动本地服务。
 2. 用浏览器打开 `http://127.0.0.1:3000`。
 3. 查看页面顶部 MQTT 状态。如果 Broker 可达，会显示“MQTT：已连接”；如果 Broker 不可达，页面仍能打开，但会显示断开状态。
-4. 在“设备ID”输入框中手动输入设备 ID，例如 `s6a34e3eccnd`，然后点击“添加设备”。
+4. 在“设备ID”输入框中手动输入设备 ID，然后点击“添加设备”。
 5. 添加后页面会立即请求设备数据，之后继续保持 5 秒自动刷新；也可以手动点击“刷新状态”。
 6. 设备 ID 会同时保存到浏览器 localStorage 和 `%APPDATA%\HVACR\devices.json`，下次启动浏览器端或桌面端时会自动恢复。
 7. 如果准备让手机、平板或另一台电脑访问本机控制面板，确保它们和这台电脑在同一局域网，并允许 Windows 防火墙放行 TCP 3000 端口。
@@ -204,7 +204,7 @@ cmd /c desktop\build.bat
 
 ```json
 {
-  "deviceId": "s6a34e3eccnd",
+  "deviceId": "",
   "action": "setTemperature",
   "value": 20
 }
@@ -221,7 +221,7 @@ cmd /c desktop\build.bat
 
 当前已验证：
 
-- `s6a34e3eccnd` 已能通过 `/api/preferences/devices` 正常读写。
+- `` 已能通过 `/api/preferences/devices` 正常读写。
 - `%APPDATA%\HVACR\devices.json` 已成功落盘并可读取。
 
 ## 已完成的运行验证
@@ -232,12 +232,12 @@ cmd /c desktop\build.bat
 - Web 服务可启动并监听 `http://127.0.0.1:3000`。
 - 页面、[public/app.js](public/app.js)、[public/styles.css](public/styles.css) 均返回 200。
 - `/api/health`、`/api/preferences/devices`、`/api/control` 已顺序验证通过。
-- `get_data` 指令已成功下发到设备 `s6a34e3eccnd`。
+- `get_data` 指令已成功下发到设备 ``。
 - 真实设备状态回读显示：
   - `power = true`
   - `set_temp = 20`
 
-这表示当前默认测试设备 `s6a34e3eccnd` 在本次验证时确实处于开启状态，且设定温度位于 20–24℃ 范围内。
+这表示当前默认测试设备 `` 在本次验证时确实处于开启状态，且设定温度位于 20–24℃ 范围内。
 
 ## 环境变量
 
@@ -259,5 +259,5 @@ cmd /c desktop\build.bat
 - GitHub 仓库公开内容不包含 `desktop` 目录；桌面端成品通过 Releases 分发，而不是通过仓库文件树直接下载。
 - WebView2 NuGet 包当前会引入一个 `WindowsBase` 版本冲突警告；当前不影响编译、发布和运行，但仍属于构建期噪音。
 - 单文件 exe 只消除了分发层面的多文件输出；运行时仍依赖目标机器已安装 WebView2 Runtime。
-- 当前已经通过真实遥测确认 `s6a34e3eccnd` 处于开启状态且 `set_temp=20`，但更长时间的温控稳定性验证仍建议在现场继续观察。
+- 当前已经通过真实遥测确认 `` 处于开启状态且 `set_temp=20`，但更长时间的温控稳定性验证仍建议在现场继续观察。
 - 如果 MQTT Broker 不可达，应用仍会启动，但控制与状态刷新会进入断开状态提示。
