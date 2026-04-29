@@ -1,0 +1,105 @@
+name: XU316 Windows Driver Bootstrapper – Build & Release
+
+on:
+  push:
+    tags:
+      - 'xu316/v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0)'
+        required: false
+        default: '1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Xu316Setup.exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.x'
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/xu316/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/xu316/v}"
+          else
+            VERSION="${{ github.event.inputs.version || '1.0.0' }}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & publish (self-contained single-file .exe)
+        run: |
+          dotnet publish xu316-driver/Xu316Setup/Xu316Setup.csproj `
+            -c Release `
+            -r win-x64 `
+            /p:PublishSingleFile=true `
+            /p:SelfContained=true `
+            /p:EnableCompressionInSingleFile=true `
+            /p:DebugType=none `
+            /p:DebugSymbols=false `
+            /p:Version=${{ steps.ver.outputs.version }} `
+            -o xu316-driver/publish
+        shell: pwsh
+
+      - name: Rename artifact
+        shell: pwsh
+        run: |
+          $src = "xu316-driver\publish\Xu316Setup.exe"
+          $dst = "xu316-driver\publish\Xu316Setup-v${{ steps.ver.outputs.version }}-win-x64.exe"
+          Rename-Item -Path $src -NewName (Split-Path $dst -Leaf)
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xu316Setup-win-x64
+          path: xu316-driver/publish/*.exe
+          retention-days: 30
+
+      - name: Create or update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/xu316/v') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('xu316/v{0}', steps.ver.outputs.version) }}
+          name: "XU316 Windows Driver Bootstrapper v${{ steps.ver.outputs.version }}"
+          body: |
+            ## XMOS XU316 USB Audio – Windows 引导安装程序 v${{ steps.ver.outputs.version }}
+
+            ### 下载说明
+
+            下载 `Xu316Setup-v${{ steps.ver.outputs.version }}-win-x64.exe` 并直接运行。
+            无需安装，无需管理员权限（扫描功能可能因权限不足受限）。
+
+            ### 工具功能
+
+            - ✅ 检测 Windows 版本（是否支持内置 UAC2 驱动）
+            - ✅ 扫描已连接的 XMOS USB 音频设备（VID/PID / 驱动状态）
+            - ✅ 输出诊断建议和操作指引
+            - ✅ 提供 XMOS 官方文档链接
+
+            ### ⚠️ 重要说明
+
+            本工具是**纯诊断/引导程序**，**不安装任何驱动**，**不包含任何第三方驱动组件**。
+
+            - **Windows 10 1703+ / Windows 11** 已内置 USB Audio Class 2.0 驱动，大多数场景**无需额外驱动**。
+            - 如需 ASIO 低延迟，请联系设备厂商获取 Thesycon OEM 驱动包。
+            - 详见：[docs/xu316-windows-support.md](https://github.com/${{ github.repository }}/blob/main/docs/xu316-windows-support.md)
+
+            ### 系统要求
+
+            - Windows 10 x64 或更高版本
+            - 无需预装 .NET Runtime（自包含可执行文件）
+          files: xu316-driver/publish/*.exe
+          draft: false
+          prerelease: false

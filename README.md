@@ -261,3 +261,55 @@ cmd /c desktop\build.bat
 - 单文件 exe 只消除了分发层面的多文件输出；运行时仍依赖目标机器已安装 WebView2 Runtime。
 - 当前已经通过真实遥测确认 `` 处于开启状态且 `set_temp=20`，但更长时间的温控稳定性验证仍建议在现场继续观察。
 - 如果 MQTT Broker 不可达，应用仍会启动，但控制与状态刷新会进入断开状态提示。
+
+---
+
+## XMOS XU316 USB 音频 Windows 支持
+
+如果你使用的设备搭载了 **XMOS XU316** USB 音频方案，本仓库同时提供一个 Windows 诊断/引导工具 `Xu316Setup.exe`，帮助你快速判断驱动状态和下一步操作。
+
+### 快速说明
+
+- **Windows 10 1703+ / Windows 11** 已内置 USB Audio Class 2.0 类驱动，绝大多数基于 XU316 的设备**无需额外安装驱动**，插上即用。
+- 如需 ASIO 低延迟（DAW 专业录音场景），需要向设备厂商获取基于 Thesycon 的 ASIO 驱动包（**本工具不提供/不包含该驱动**）。
+- XMOS 官方不直接向终端用户分发统一驱动；驱动应从**设备品牌厂商官网**获取。
+
+### 下载 Xu316Setup.exe
+
+从 [GitHub Releases](../../releases) 下载 `Xu316Setup-vX.X.X-win-x64.exe`，直接运行即可（无需安装，无需管理员权限）。
+
+工具会：
+1. 检测当前 Windows 版本是否支持内置 UAC2 驱动。
+2. 扫描已连接的 XMOS USB 音频设备（VID/PID / 驱动状态）。
+3. 输出建议和操作指引。
+4. 提供 XMOS 官方文档链接。
+
+> ⚠️ **免责声明**：`Xu316Setup.exe` 是纯诊断/引导工具，**不安装任何驱动**，**不包含任何第三方驱动组件**，不修改系统注册表。
+
+### 详细文档
+
+参见 [docs/xu316-windows-support.md](docs/xu316-windows-support.md)，包含：
+- Windows 驱动选项对比（内置 UAC2 / Thesycon / ASIO4ALL）
+- 设备固件升级（DFU）流程
+- 常见问题解答
+
+### 实施计划与法律说明
+
+参见 [PLAN.md](PLAN.md)，包含：
+- 可行性分析
+- 法律/许可限制（为何不能分发 Thesycon 驱动）
+- CI/CD 发布流水线说明
+
+### 构建 Xu316Setup.exe（开发者）
+
+```bash
+dotnet publish xu316-driver/Xu316Setup/Xu316Setup.csproj \
+  -c Release -r win-x64 \
+  /p:PublishSingleFile=true /p:SelfContained=true \
+  /p:EnableCompressionInSingleFile=true \
+  -o xu316-driver/publish
+```
+
+输出文件：`xu316-driver/publish/Xu316Setup.exe`
+
+CI/CD 自动发布：推送 `xu316/vX.X.X` 格式的 tag，或在 Actions 页面手动触发 **XU316 Windows Driver Bootstrapper – Build & Release** 工作流。
