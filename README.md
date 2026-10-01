@@ -1,263 +1,152 @@
-# 压缩机控制面板
+# 冷却控制台
 
-面向冷水机 / 压缩机设备的本地控制面板，当前实现基于 .NET 10、MQTT 和 WebView2。
+用于压缩机 / 冷水机的本地控制台，使用 C#、.NET 10、MQTT 和 WebView2。支持 Windows 单文件桌面程序，也可从公开源码运行 Web 服务。
 
-项目现在同时提供两种运行方式：
+**[下载 Windows x64 单文件 exe](https://github.com/glftbcj/compressor-control-panel/releases/latest/download/hvacr.exe)** · [发布记录](https://github.com/glftbcj/compressor-control-panel/releases) · [使用说明](docs/使用说明.md) · [安全边界](docs/安全边界.md) · [验证记录](docs/验证记录.md)
 
-- Web 版：启动本地 HTTP 服务后，用浏览器访问。
-- Windows 桌面版：原生 WinForms 宿主承载 WebView2，发布为单一 exe，运行时只依赖 WebView2 Runtime，不依赖 Edge 浏览器程序本身。
+## 桌面版
 
-## 当前实现特性
+下载 `hvacr.exe` 后直接双击，无需安装 .NET SDK 或 Node.js。界面需要本机 Microsoft Edge WebView2 Runtime；缺少时程序会提示。exe 包含程序、.NET 运行时和前端，无需旁置 DLL、settings.json 或启动脚本。
 
-- MQTT 双向通信，控制指令通过 `{deviceId}/app` 下发。
-- 页面仍保持现有交互逻辑和 5 秒自动刷新节奏。
-- 设备 ID 继续由用户手动输入，但现在会双重持久化：
-  - 浏览器 localStorage
-  - `%APPDATA%\HVACR\devices.json`
-- 桌面端使用 WebView2 Runtime，用户数据目录保存在 `%APPDATA%\HVACR\webview2\`。
-- Windows 桌面版以单一 exe 形式分发；GitHub 仓库不公开 `desktop` 目录，桌面端请从 GitHub Releases 下载 `hvacr.exe`。
+公开版不包含任何个人连接凭据或设备 ID。首次运行填写 MQTT 服务器、账号、密码并保存，之后直接打开；也可选择离线预览。已有本机配置可直接复用，旧 exe 旁的配置会迁移到用户数据目录。连接信息、设备记录和外观统一保存到 `%APPDATA%\HVACR`，移动 exe 不影响它们。
 
-## 公开仓库结构
+默认只读。添加自己的设备 ID 后，打开软件立即查询所选设备状态；通信连接恢复后也立即查询。在「设备控制」点击「启用控制」即可调整，无需重启或第二个确认窗口。关闭软件不会停止设备。
 
-```text
-src/
-  Hvacr.App/        共享后端逻辑（HTTP API、MQTT、静态资源、设备持久化）
-  Hvacr.Server/     浏览器模式入口
-public/
-  index.html        页面结构
-  styles.css        样式
-  app.js            前端逻辑（UI 保持原交互，内部实现已加固）
+## 2.0.0 的变化
+
+- 简化为单页控制台，删除侧栏；设备选择、管理和外观设置集中在顶部。
+- 浅色、暗色、跟随系统，自定义主颜色；外观持久化，与设备 ID 保存在同一目录。
+- 温度可直接输入小数目标或使用 ± 按钮，水泵使用 1–10 挡滑块；点击应用直接发送，编辑和拖动不发送。
+- 正常使用没有单次 1℃ / 一个挡位限制，也没有固定调整间隔。相关回读确认后可继续调整；压缩机启停保留确认。
+- 打开即查询、发送后立即查询；通过本地实时流更新状态，保持每秒查询。应用目标立即显示，回读状态单独标明。
+- 修复同一水温回报的「几秒前更新」倒退，以及后续不同云端回报覆盖本机设定的问题。
+- 默认只读、仅本机访问、精确设备订阅、指令白名单、数值与基准校验、去重和回读确认。
+
+本次程序运行中下发的温度 / 水泵目标会单独保留，刷新页面或调整另一项不会丢失。云端后来回报不同值时，目标和输入框保持原值，并显示具体差异；实际水温和原始回报继续更新，不会自动重新下发。重启程序后初始设定来自云端回报。
+
+## 从源码运行
+
+需要 .NET 10 SDK：
+
+```powershell
+dotnet run --project src/Hvacr.Server
 ```
 
-说明：
+默认访问 `http://127.0.0.1:3000`。从源码运行时，用 `settings.example.json` 的格式填写本地配置，或设置 MQTT 环境变量。公开源码不包含默认密码。
 
-- GitHub 公开仓库主要包含 Web 端和共享后端源码。
-- Windows 桌面版在 GitHub 上不公开 `desktop` 目录源码，只在 Releases 提供编译后的 `hvacr.exe`。
+离线预览不构造 MQTT 客户端：
 
-## 运行方式
-
-### 浏览器端怎么使用
-
-前提条件：
-
-- 源码运行需要已安装 .NET 10 SDK。
-- 当前默认 MQTT Broker 为 `mqtt://www.cndq.xyz:1883`，需要本机能访问外网 MQTT 环境。
-- 需要提前知道有效设备 ID，例如 ``。
-- 只想使用浏览器端时，不要求安装 Node.js；`npm start` 只是对 `dotnet run` 的一层包装。
-
-启动方式：
-
-```bash
-dotnet run --project src/Hvacr.Server/Hvacr.Server.csproj
+```powershell
+$env:HVACR_SIMULATION = 'true'
+$env:HVACR_READ_ONLY = 'false'
+$env:HVACR_DATA_DIR = "$PWD\.test-data\demo"
+dotnet run --project src/Hvacr.Server
 ```
 
-或使用根脚本：
+桌面版也可运行 `hvacr.exe --simulate`，模拟数据独立保存于 `%APPDATA%\HVACR\demo`。`--control` 指定本次启动即启用控制；`--read-only` 指定只读。
 
-```bash
-npm start
+## 配置和数据
+
+环境变量优先，其次 `HVACR_SETTINGS` 指定的 JSON。桌面版默认优先使用数据目录的 settings.json，缺少时迁移旧 exe 旁文件；首次连接界面保存到数据目录。Web 服务保留 exe 旁配置优先的兼容行为。已有配置不会被自动覆盖。
+
+```json
+{
+  "mqttBroker": "mqtt://your-broker:1883",
+  "mqttUser": "your-user",
+  "mqttPass": "your-password",
+  "readOnly": true
+}
 ```
 
-默认访问地址：
+| 文件 | 用途 |
+|---|---|
+| settings.json | 连接信息和启动模式 |
+| devices.json | 已保存设备 ID 与名称 |
+| appearance.json | 主题和主颜色 |
+| webview2/ | 桌面浏览器用户数据 |
 
-```text
-http://127.0.0.1:3000
+这些文件在用户数据目录自动生成，不需要与 exe 一起分发。配置没有加密，不应上传或分享自己的配置、设备记录和包含凭据的个人 exe。
+
+| 环境变量 | 默认值 | 说明 |
+|---|---|---|
+| HOST | 127.0.0.1 | IP 或 localhost；局域网监听需访问密钥 |
+| PORT | 3000 | 1–65535；桌面版自动选择本机端口 |
+| HVACR_READ_ONLY | true | 启动模式；界面切换仅本次运行有效 |
+| HVACR_SIMULATION | false | 离线模拟 |
+| HVACR_DATA_DIR | %APPDATA%\HVACR | 配置、设备、外观和桌面用户数据目录 |
+| HVACR_SETTINGS | 自动选择 | 本地配置文件路径 |
+| HVACR_ACCESS_TOKEN | 空 | 局域网必需，至少 32 字符；配置后本机 API 也需认证 |
+| MQTT_BROKER | mqtt://www.cndq.xyz:1883 | mqtt / mqtts；后者校验证书 |
+| MQTT_USER / MQTT_PASS | 空 | MQTT 连接凭据 |
+
+不支持 CMD_SUFFIX 或 SUB_TOPIC 覆盖，控制主题与设备订阅范围固定。
+
+## 控制与权限
+
+写入仅针对已保存设备。温度范围 −20–50℃，水泵为 1–10 的整数挡位。控制须带唯一 commandId 与 expectedValue，并使用相关字段最近 30 秒的非 retained 回读作为基准。其他字段更新不延长该字段的有效期。
+
+发送成功后等待新回读，不修改原始遥测；重复指令去重，待确认或不确定时阻止继续控制，不自动重发。断线退避重连，控制不排队，只订阅已保存设备的精确主题。
+
+本地 API 拒绝跨站请求和不合法 Host。写入要求会话令牌及 JSON；配置访问密钥时所有 API 需要 Bearer 认证。厂商共享认证和设备 ACL **没有通过客户端修复**；第三方仍可能绕过本应用直接向云端发布。协议没有可验证的设备签名或指令确认 ID，回读仅表示观察到目标值。详见 [安全边界](docs/安全边界.md)。
+
+## 构建与验证
+
+```powershell
+dotnet build Hvacr.slnx -c Release
+dotnet run --project tests/Hvacr.Tests -c Release
+npm ci
+npx playwright install chromium
+npm run test:ui
 ```
 
-同一局域网内的其他设备也可以直接访问：
+Node.js 只用于浏览器测试。Windows 可使用 `scripts/verify.ps1 -Browser`；`HVACR_DOTNET` 指定 SDK，`HVACR_NUGET_SOURCE` 指定包源，`HVACR_BROWSER` 指定已安装的 Chrome / Chromium。
 
-```text
-http://本机局域网IP:3000
+桌面宿主按项目约定保存在本地独立 Git 仓库，未包含在公开源码包中；公开解决方案可独立构建后端和测试。具有本地 desktop 源码时：
+
+```powershell
+# 公开发布包：明确排除所有私有内嵌配置
+.\scripts\build-desktop.ps1 -PublicRelease
+# 本地个人包：可内嵌自己的默认配置，仅供本人使用
+.\scripts\build-desktop.ps1 -PrivateSettingsPath '.local\settings.json'
 ```
 
-例如当前这台机器的局域网 IPv4 是 `192.168.50.152`，那么同一局域网里的其他设备应访问：
-
-```text
-http://192.168.50.152:3000
-```
-
-浏览器端使用步骤：
-
-1. 在项目根目录启动本地服务。
-2. 用浏览器打开 `http://127.0.0.1:3000`。
-3. 查看页面顶部 MQTT 状态。如果 Broker 可达，会显示“MQTT：已连接”；如果 Broker 不可达，页面仍能打开，但会显示断开状态。
-4. 在“设备ID”输入框中手动输入设备 ID，然后点击“添加设备”。
-5. 添加后页面会立即请求设备数据，之后继续保持 5 秒自动刷新；也可以手动点击“刷新状态”。
-6. 设备 ID 会同时保存到浏览器 localStorage 和 `%APPDATA%\HVACR\devices.json`，下次启动浏览器端或桌面端时会自动恢复。
-7. 如果准备让手机、平板或另一台电脑访问本机控制面板，确保它们和这台电脑在同一局域网，并允许 Windows 防火墙放行 TCP 3000 端口。
-
-开发模式：
-
-```bash
-npm run dev
-```
-
-浏览器端运行中的常见现象：
-
-- 页面可以打开但顶部显示“MQTT：断开 ...”：本地 HTTP 服务正常，但 MQTT Broker 不可达，控制和状态刷新会失败。
-- 页面显示“设备未返回数据”：设备 ID 已保存，但设备当前没有上报或尚未上线。
-- 重启后设备 ID 仍能自动恢复：这是 localStorage 与 `%APPDATA%\HVACR\devices.json` 双持久化生效的预期行为。
-
-### Windows 桌面版
-
-要求：
-
-- Windows
-- 已安装 WebView2 Runtime
-- 不要求安装或保留 Edge 浏览器程序
-
-获取方式：
-
-- 进入 GitHub Releases 下载 `hvacr.exe`
-
-如果你在本地私有开发环境中保留了 `desktop` 目录，则仍可从源码调试桌面宿主：
-
-```bash
-npm run desktop
-```
-
-### 浏览器端与桌面端区别
-
-| 模式 | 启动方式 | 运行时依赖 | 适用场景 |
-|------|----------|------------|----------|
-| 浏览器端 | `dotnet run` 或 `npm start` 后手动打开浏览器 | .NET 10 SDK、浏览器、可访问 MQTT Broker | 开发调试、局域网或本机操作 |
-| Windows 桌面版 | 从 GitHub Releases 下载并运行 `hvacr.exe`；若本地私有环境保留 `desktop` 目录，也可使用 `npm run desktop` | WebView2 Runtime、可访问 MQTT Broker | 分发给 Windows 用户、获得更原生的窗口体验 |
-
-## 构建与打包
-
-如果你只是 GitHub 仓库使用者，而不是本地私有构建环境维护者，那么桌面端不需要自行构建，直接从 GitHub Releases 下载 `hvacr.exe` 即可。
-
-### 构建整个解决方案
-
-```bash
-npm run build
-```
-
-### 生成单文件桌面 exe（仅适用于本地保留 `desktop` 目录的构建环境）
-
-```bash
-cmd /c desktop\build.bat
-```
-
-构建结果：
-
-- 最终分发文件：`desktop\hvacr.exe`
-- 中间发布文件：`desktop\dist\Hvacr.Desktop.exe`
-
-当前验证结果：
-
-- 发布脚本已成功生成单一 exe。
-- 当前 `desktop/dist` 目录只包含一个 exe 文件。
-- 当前 `desktop\hvacr.exe` 体积约为 64.3 MB。
-
-## MQTT 协议
-
-### 设备上报主题
-
-```text
-{deviceId}/bxkt/esp
-```
-
-当前已验证的设备上报字段包括：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| power | bool | 压缩机运行状态 |
-| sj_temp | number | 实际温度 |
-| set_temp | number | 设定温度 |
-| wind_speed_set | number | 水泵挡位 |
-| pump_switch | bool | 水泵开关 |
-| ln_temp | number | 液管温度 |
-| zf_temp | number | 蒸发温度 |
-| voltage | number | 电压 |
-| run_fz | number | 运行频率 |
-| fault_codes | bool/string | 故障码 |
-| version | number | 固件版本 |
-
-### 控制下发主题
-
-```text
-{deviceId}/app
-```
-
-### 当前控制动作映射
-
-| action | payload |
-|--------|---------|
-| get_data | `{"get_data":1}` |
-| start | `{"power":true}` |
-| stop | `{"power":false}` |
-| setTemperature | `{"set_temp":N}` |
-| setWindSpeed | `{"wind_speed_set":N}` |
+公开包输出到 `artifacts/github-release/hvacr.exe`，个人包到 `artifacts/release/hvacr.exe`。`-PublicRelease` 不读取个人配置，也不覆盖个人交付目录。Release 附件另提供 SHA256SUMS.txt。
 
 ## HTTP API
 
 | 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/health` | 健康检查 |
-| GET | `/api/devices` | 返回连接状态和设备列表 |
-| GET | `/api/status` | 返回连接状态、lastError 和设备列表 |
-| POST | `/api/control` | 发送控制指令 |
-| GET | `/api/preferences/devices` | 读取设备 ID 持久化列表 |
-| PUT | `/api/preferences/devices` | 写入设备 ID 持久化列表 |
+|---|---|---|
+| GET | /api/config | 模式、阈值、会话令牌 |
+| PUT | /api/mode | 本次运行只读 / 控制模式；启用须 confirmEnable=true |
+| GET | /api/health | 进程健康 |
+| GET | /api/status | 遥测、连接、指令回读和服务器时间 |
+| GET | /api/events | 受相同访问保护的同源实时状态流 |
+| GET | /api/devices | 兼容设备状态列表 |
+| GET / PUT | /api/preferences/devices | 服务端权威设备记录 |
+| GET / PUT | /api/preferences/appearance | 文件保存的主题与主颜色 |
+| POST | /api/control | 查询或控制 |
 
-示例：
+先 GET /api/config 获取 sessionToken；所有 POST / PUT 带 X-Hvacr-Session。配置密钥时另带 Authorization: Bearer。允许动作：get_data、start、stop、setTemperature、setWindSpeed；启停须 confirmPower=true。
 
 ```json
 {
-  "deviceId": "",
+  "deviceId": "your-device",
   "action": "setTemperature",
-  "value": 20
+  "value": 24,
+  "expectedValue": 23,
+  "commandId": "099f90a8-b218-4cc7-ad32-883da77155bf"
 }
 ```
 
-## 设备 ID 保存机制
+202 表示已发送待回读；409 表示基准变化、过期、忙碌或上一条未确认；503 表示通信不可用；504 的 uncertain 表示发送结果不确定。不要自动重试 uncertain 写入，先查询状态。
 
-设备 ID 仍然是手动输入，不会擅自写死到 UI 中。
+## 目录
 
-当前保存路径分两层：
+- src/Hvacr.App：访问保护、配置持久化、设备记录、通信、指令协调和内嵌 UI。
+- src/Hvacr.Server：Web 入口。
+- public：无外部字体、脚本和图片依赖的 UI。
+- tests：后端、HTTP 集成和浏览器检查。
+- docs：使用说明、安全边界和验证记录。
+- desktop：忽略的本地私有宿主，独立 Git 保存。
 
-1. 浏览器或 WebView2 的 localStorage
-2. `%APPDATA%\HVACR\devices.json`
-
-当前已验证：
-
-- `` 已能通过 `/api/preferences/devices` 正常读写。
-- `%APPDATA%\HVACR\devices.json` 已成功落盘并可读取。
-
-## 已完成的运行验证
-
-当前这轮代码已完成以下验证：
-
-- 解决方案可成功编译。
-- Web 服务可启动并监听 `http://127.0.0.1:3000`。
-- 页面、[public/app.js](public/app.js)、[public/styles.css](public/styles.css) 均返回 200。
-- `/api/health`、`/api/preferences/devices`、`/api/control` 已顺序验证通过。
-- `get_data` 指令已成功下发到设备 ``。
-- 真实设备状态回读显示：
-  - `power = true`
-  - `set_temp = 20`
-
-这表示当前默认测试设备 `` 在本次验证时确实处于开启状态，且设定温度位于 20–24℃ 范围内。
-
-## 环境变量
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| HOST | 浏览器端默认 `0.0.0.0`，桌面端固定 `127.0.0.1` | 浏览器端监听地址；设为 `0.0.0.0` 时可被局域网其他设备访问 |
-| MQTT_BROKER | `mqtt://www.cndq.xyz:1883` | MQTT 地址 |
-| MQTT_USER | `cndq_bxkt` | MQTT 用户名 |
-| MQTT_PASS | `08210012Abc` | MQTT 密码 |
-| CMD_SUFFIX | `/app` | 控制主题后缀 |
-| SUB_TOPIC | `+/bxkt/#` | 订阅主题 |
-| PORT | `3000` | 本地 HTTP 端口 |
-| HVACR_DATA_DIR | `%APPDATA%\HVACR` | 本地数据目录 |
-
-## 已知限制
-
-- 浏览器端不是纯静态页面，必须先启动本地 HTTP 服务，然后再访问 `http://127.0.0.1:3000`。
-- 如果局域网其他设备仍然访问不到 `http://本机局域网IP:3000`，通常不是页面本身问题，而是 Windows 防火墙、路由隔离或不同网段导致的网络阻断。
-- GitHub 仓库公开内容不包含 `desktop` 目录；桌面端成品通过 Releases 分发，而不是通过仓库文件树直接下载。
-- WebView2 NuGet 包当前会引入一个 `WindowsBase` 版本冲突警告；当前不影响编译、发布和运行，但仍属于构建期噪音。
-- 单文件 exe 只消除了分发层面的多文件输出；运行时仍依赖目标机器已安装 WebView2 Runtime。
-- 当前已经通过真实遥测确认 `` 处于开启状态且 `set_temp=20`，但更长时间的温控稳定性验证仍建议在现场继续观察。
-- 如果 MQTT Broker 不可达，应用仍会启动，但控制与状态刷新会进入断开状态提示。
+自动验证使用离线模拟器或假传输。实机开发测试遵守每次最多 1℃ / 一个挡位的用户授权范围，不执行实机启停或更改设备 MQTT 配置。真实响应速度、云端 ACL 和长期散热表现不在离线验证范围内。

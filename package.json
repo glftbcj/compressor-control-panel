@@ -1,6 +1,6 @@
 {
   "name": "hvacr-control",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "Native-feeling HVACR controller powered by .NET 10, MQTT and WebView2",
   "scripts": {
@@ -8,7 +8,12 @@
     "dev": "dotnet watch --project src/Hvacr.Server/Hvacr.Server.csproj run",
     "build": "dotnet build Hvacr.slnx",
     "desktop": "dotnet run --project desktop/Hvacr.Desktop/Hvacr.Desktop.csproj",
-    "desktop:publish": "dotnet publish desktop/Hvacr.Desktop/Hvacr.Desktop.csproj -c Release -r win-x64 /p:PublishSingleFile=true /p:SelfContained=true /p:IncludeNativeLibrariesForSelfExtract=true /p:EnableCompressionInSingleFile=true /p:DebugType=None /p:DebugSymbols=false"
+    "desktop:publish": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-desktop.ps1",
+    "test:backend": "dotnet run --project tests/Hvacr.Tests -c Release",
+    "test:ui": "playwright test"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
 }

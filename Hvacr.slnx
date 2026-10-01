@@ -1,9 +1,10 @@
 <Solution>
-  <Folder Name="/desktop/">
-    <Project Path="desktop/Hvacr.Desktop/Hvacr.Desktop.csproj" />
-  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Hvacr.App/Hvacr.App.csproj" />
     <Project Path="src/Hvacr.Server/Hvacr.Server.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Hvacr.Tests/Hvacr.Tests.csproj" />
+  </Folder>
 </Solution>
+

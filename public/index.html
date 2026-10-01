@@ -3,98 +3,90 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
   <title>压缩机控制面板</title>
-  <link rel="stylesheet" href="styles.css" />
+  <script src="/appearance.js"></script>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/app.js" defer></script>
 </head>
 <body>
-  <main class="container">
-    <!-- 顶部 -->
-    <header class="top-bar">
-      <h1>压缩机控制面板</h1>
-      <div class="top-meta">
-        <div class="conn-wrap">
-          <span id="connectionDot"></span>
-          <span id="connectionStatus">MQTT：未知</span>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M3.34 7l17.32 10M3.34 17L20.66 7M8 4l4 3 4-3M8 20l4-3 4 3M3 11l4-2-1-5M21 13l-4 2 1 5M3 13l4 2-1 5M21 11l-4-2 1-5"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M5 3v4m0 4v10M12 3v10m0 4v4M19 3v2m0 4v12"/><path d="M2 7h6v4H2zM9 13h6v4H9zM16 5h6v4h-6z"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5 7a8 8 0 0 1 13-2l2 2M4 17l2 2a8 8 0 0 0 13-2"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-temp" viewBox="0 0 24 24"><path d="M9 14V5a3 3 0 0 1 6 0v9a5 5 0 1 1-6 0Z"/><path d="M12 7v10"/></symbol>
+    <symbol id="i-water" viewBox="0 0 24 24"><path d="M12 2S5 10 5 15a7 7 0 0 0 14 0c0-5-7-13-7-13Z"/><path d="M9 16a3 3 0 0 0 3 3"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10M6 5a9 9 0 1 0 12 0"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  </svg>
+  <div class="app-shell">
+    <main class="main-content">
+      <header id="overview" class="page-header">
+        <div class="brand"><span class="brand-mark"><svg><use href="#i-snow"/></svg></span><div><h1>冷却控制台<span class="heading-dot">.</span></h1><small>COOLING CONSOLE</small></div></div>
+        <div class="header-actions">
+          <span id="connectionStatus" class="connection" role="status"><span id="connectionDot" data-state="disconnected"></span><span id="connectionLabel">正在连接</span></span>
+          <button id="appearanceBtn" class="appearance-button" title="主题与主颜色" disabled><svg><use href="#i-sliders"/></svg><span>外观</span></button>
+          <button id="refreshBtn" class="icon-button" title="刷新设备状态" aria-label="刷新设备状态"><svg><use href="#i-refresh"/></svg></button>
         </div>
-        <span class="divider">|</span>
-        <span id="deviceCount">设备数量：0</span>
+      </header>
+      <section class="device-toolbar" aria-label="设备选择">
+        <label for="deviceSelect">设备 <span id="deviceCount" class="count">0</span></label>
+        <select id="deviceSelect"><option value="">尚未添加设备</option></select>
+        <span id="sidebarDeviceState" class="device-note">等待设备连接</span>
+        <button id="openAddBtn" class="add-device"><svg><use href="#i-plus"/></svg>添加</button>
+        <button id="deleteDeviceBtn" class="text-button">移除</button>
+      </section>
+      <div id="simulationBanner" class="notice simulation-notice" hidden><strong>离线模拟</strong><span>当前读数和操作来自模拟器，不连接真实设备。</span></div>
+      <div id="connectionNotice" class="notice" hidden></div>
+      <section class="device-heading"><h2 id="selectedDeviceName">选择你的设备</h2><span id="freshnessBadge" class="freshness" data-state="waiting">等待回报</span></section>
+      <section class="overview-grid" aria-label="运行概况">
+        <article class="temperature-hero">
+          <div class="hero-top"><span><svg><use href="#i-temp"/></svg>实时水温</span><span id="powerState" class="hero-status">状态未知</span></div>
+          <div class="hero-reading"><span id="currentTemp">—</span><span class="hero-unit">℃</span></div>
+          <div class="hero-bottom"><span><i class="live-dot"></i><span id="waterReadingLabel">等待水温回读</span></span><span id="lastSeenLabel">尚无数据</span></div>
+          <svg class="hero-watermark" aria-hidden="true"><use href="#i-snow"/></svg>
+        </article>
+        <article class="metric-card"><div class="metric-label"><span class="metric-icon"><svg><use href="#i-temp"/></svg></span>设定温度</div><div class="metric-reading"><span id="currentSetTemp">—</span><span>℃</span></div><p id="temperatureReadback">云端回报值</p><div class="metric-foot">TARGET TEMPERATURE</div></article>
+        <article class="metric-card"><div class="metric-label"><span class="metric-icon blue"><svg><use href="#i-water"/></svg></span>水泵挡位</div><div class="metric-reading"><span id="currentPumpSpeed">—</span><span>/ 10</span></div><p id="pumpState">运行状态未知</p><p id="pumpReadback">云端回报值</p><div class="metric-foot">PUMP SPEED</div></article>
+      </section>
+      <div class="workspace-grid">
+        <section class="panel trend-panel" aria-labelledby="trendTitle">
+          <div class="panel-heading"><div><h2 id="trendTitle">水温趋势</h2><p>本次会话 · 最近 20 分钟</p></div><span class="chart-legend"><i></i>水温</span></div>
+          <div class="chart-wrap"><div id="chartEmpty" class="chart-empty"><svg><use href="#i-activity"/></svg><p>收到设备回报后显示趋势</p><small>仅记录实际收到的水温数据</small></div>
+            <svg id="temperatureChart" viewBox="0 0 600 220" preserveAspectRatio="none" role="img" aria-label="本次会话水温变化曲线" hidden>
+              <defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#168477" stop-opacity=".16"/><stop offset="100%" stop-color="#168477" stop-opacity="0"/></linearGradient></defs>
+              <path class="chart-grid" d="M48 20H584M48 75H584M48 130H584M48 185H584"/>
+              <text id="chartMax" x="0" y="24"></text><text id="chartMid" x="0" y="105"></text><text id="chartMin" x="0" y="189"></text>
+              <path id="chartArea" fill="url(#chartFill)"/><path id="chartLine" fill="none" stroke="#168477" stroke-width="2.5" vector-effect="non-scaling-stroke"/><circle id="chartEnd" r="4" fill="#168477"/>
+            </svg>
+          </div>
+          <div class="chart-footer"><span id="chartStart">—</span><span id="chartSampleCount">0 个采样</span><span id="chartLatest">—</span></div>
+        </section>
+        <section id="control" class="panel control-panel" aria-labelledby="controlTitle">
+          <div class="panel-heading"><h2 id="controlTitle">设备控制</h2><span id="modeBadge" class="badge">连接中</span></div>
+          <div class="mode-row"><p id="modeDescription">正在读取控制模式。</p><button id="modeToggleBtn" class="mode-button" disabled>启用控制</button></div>
+          <div class="adjustment"><div class="adjustment-label"><label for="temperatureInput">设定温度</label><span id="temperatureBaseline">当前 — ℃</span></div><div class="temperature-editor"><button id="tempDownBtn" data-control aria-label="降低一度" disabled>−</button><div class="number-field"><input id="temperatureInput" data-control type="number" min="-20" max="50" step="any" inputmode="decimal" aria-describedby="temperatureHelp" placeholder="—" disabled/><span>℃</span></div><button id="tempUpBtn" data-control aria-label="升高一度" disabled>＋</button><button id="applyTempBtn" data-control class="primary" disabled>应用</button></div><p id="temperatureHelp" class="field-help">输入目标温度 · −20–50℃</p></div>
+          <div class="adjustment"><div class="adjustment-label"><label for="pumpSlider">水泵挡位</label><span id="pumpBaseline">当前 — 挡</span></div><div class="pump-editor"><input id="pumpSlider" data-control type="range" min="1" max="10" step="1" value="5" aria-describedby="pumpHelp" disabled/><output id="pumpTarget" for="pumpSlider">—</output><button id="applyPumpBtn" data-control class="primary" disabled>应用</button></div><div class="range-labels"><span>1 挡</span><span>10 挡</span></div><p id="pumpHelp" class="field-help">拖动选择目标挡位，点击应用即可发送。</p></div>
+          <p id="controlHint" class="control-hint">收到新鲜回读后开放控制。</p>
+          <details class="power-details"><summary><svg><use href="#i-power"/></svg>压缩机启停<span>谨慎操作</span></summary><p>启停会影响电脑散热，需要单独确认。关闭面板不会关闭设备。</p><div class="power-buttons"><button id="startBtn" data-control disabled>启动压缩机</button><button id="stopBtn" data-control class="danger-outline" disabled>停止压缩机</button></div></details>
+        </section>
       </div>
-    </header>
-
-    <!-- 数据监控 -->
-    <section class="metrics-row">
-      <div class="metric-card metric-temp">
-        <span class="metric-label">实时水温</span>
-        <div class="metric-body">
-          <span class="metric-value" id="currentTemp">--</span>
-          <span class="metric-unit">℃</span>
-        </div>
-      </div>
-      <div class="metric-card metric-set">
-        <span class="metric-label">设定温度</span>
-        <div class="metric-body">
-          <span class="metric-value" id="currentSetTemp">--</span>
-          <span class="metric-unit">℃</span>
-        </div>
-      </div>
-      <div class="metric-card metric-pump">
-        <span class="metric-label">水泵挡位</span>
-        <div class="metric-body">
-          <span class="metric-value" id="currentPumpSpeed">--</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- 设备管理 -->
-    <section class="card device-management">
-      <h2>设备管理</h2>
-      <div class="control-row row-select">
-        <label for="deviceSelect">选择设备</label>
-        <select id="deviceSelect"></select>
-      </div>
-      <div class="control-row row-device-entry">
-        <label for="deviceIdInput">设备ID</label>
-        <input id="deviceIdInput" type="text" autocomplete="off" />
-        <button id="addDeviceBtn" class="secondary">添加设备</button>
-      </div>
-      <div class="control-row row-delete-action">
-        <button id="deleteDeviceBtn" class="danger">删除选中设备</button>
-      </div>
-    </section>
-
-    <!-- 控制面板 -->
-    <section class="card control-panel">
-      <h2>控制面板</h2>
-      <div class="control-row btn-pair row-power-actions">
-        <button id="startBtn" class="primary">启动压缩机</button>
-        <button id="stopBtn"  class="danger">停止压缩机</button>
-      </div>
-      <div class="control-row row-temperature">
-        <label for="temperatureInput">设定温度 (℃)</label>
-        <input id="temperatureInput" type="number" min="-20" max="50" step="1" value="18" />
-        <button id="setTempBtn" class="secondary">设置温度</button>
-      </div>
-      <div class="control-row pump-row row-pump-adjust">
-        <label for="pumpSpeedInput">水泵挡位</label>
-        <div class="pump-control-group">
-          <input id="pumpSpeedInput" type="range" min="0" max="10" value="5" />
-          <span id="pumpSpeedValue">5</span>
-        </div>
-      </div>
-      <div class="control-row row-pump-action">
-        <button id="setPumpSpeedBtn" class="secondary">设置水泵挡位</button>
-      </div>
-      <div class="control-row row-refresh">
-        <button id="refreshBtn" class="secondary">刷新状态</button>
-      </div>
-    </section>
-
-    <!-- 设备状态 -->
-    <section class="card status-card">
-      <h2>设备状态</h2>
-      <pre id="statusOutput" aria-live="polite">正在加载…</pre>
-    </section>
-  </main>
-  <script src="app.js"></script>
+      <section id="telemetry" class="panel telemetry-panel" aria-labelledby="telemetryTitle">
+        <div class="panel-heading"><h2 id="telemetryTitle">设备遥测</h2><span id="faultState" class="badge">故障状态未知</span></div>
+        <div class="telemetry-grid"><div><span>液管温度</span><strong id="liquidTemp">—</strong><small>℃</small></div><div><span>蒸发温度</span><strong id="evaporatorTemp">—</strong><small>℃</small></div><div><span>供电电压</span><strong id="voltage">—</strong><small>V</small></div><div><span>运行频率</span><strong id="frequency">—</strong><small>Hz</small></div></div>
+      </section>
+      <footer class="page-footer"><span id="pollingLabel">实时回读 · 每秒查询状态</span><button id="openSecurityBtn" class="text-button"><svg><use href="#i-shield"/></svg>访问与设备安全</button></footer>
+      <details class="raw-details"><summary>查看原始设备回报</summary><pre id="statusOutput">尚未收到设备数据。</pre></details>
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    </main>
+  </div>
+  <dialog id="addDialog" aria-labelledby="addTitle"><form id="addDeviceForm"><div class="dialog-eyebrow">DEVICE CONNECTION</div><h2 id="addTitle">添加设备</h2><p>输入设备 ID，保存后请求状态回报。</p><label for="deviceIdInput">设备 ID</label><input id="deviceIdInput" type="text" maxlength="64" autocomplete="off" placeholder="输入设备标识" required pattern="[A-Za-z0-9_-]{1,64}"/><p id="addError" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" data-close="addDialog">取消</button><button id="addDeviceBtn" class="primary" type="submit">保存设备</button></div></form></dialog>
+  <dialog id="confirmDialog" aria-labelledby="confirmTitle"><form id="confirmForm"><div class="dialog-eyebrow">CONFIRM ADJUSTMENT</div><h2 id="confirmTitle">确认调整</h2><p id="confirmDevice"></p><div id="confirmChange" class="confirm-change"></div><p id="confirmDescription">发送后需等待设备回读确认。</p><label id="powerConfirmWrap" class="checkbox-label" hidden><input id="powerConfirmCheck" type="checkbox"/>我已确认此操作会影响电脑散热</label><div class="dialog-actions"><button type="button" data-close="confirmDialog">取消</button><button id="confirmSendBtn" class="primary" type="submit">确认发送</button></div></form></dialog>
+  <dialog id="appearanceDialog" aria-labelledby="appearanceTitle"><div class="dialog-eyebrow">APPEARANCE</div><h2 id="appearanceTitle">让控制台适合你</h2><p>主题与主颜色与设备 ID 保存在同一个数据目录，重开软件后继续使用。</p><label for="themeSelect">显示模式</label><select id="themeSelect"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">暗色</option></select><label for="accentColor">主颜色</label><div class="color-editor"><input id="accentColor" type="color" value="#147c6e" aria-label="选择主颜色"/><input id="accentHex" type="text" maxlength="7" pattern="#[0-9a-fA-F]{6}" value="#147c6e" aria-label="主颜色十六进制值" spellcheck="false"/></div><div class="color-presets" aria-label="预设主颜色"><button type="button" data-accent="#147c6e" aria-label="青绿"></button><button type="button" data-accent="#4e79df" aria-label="蓝色"></button><button type="button" data-accent="#8a5ccf" aria-label="紫色"></button><button type="button" data-accent="#c66635" aria-label="橙色"></button><button type="button" data-accent="#bd527d" aria-label="玫红"></button></div><p id="appearanceSaveStatus" class="field-help" role="status">正在读取本地外观设置。</p><div class="dialog-actions"><button id="resetAppearanceBtn" type="button">恢复默认</button><button id="saveAppearanceBtn" class="primary" type="button">完成</button></div></dialog>
+  <dialog id="loginDialog" aria-labelledby="loginTitle"><form id="loginForm"><div class="dialog-eyebrow">LOCAL ACCESS</div><h2 id="loginTitle">面板访问验证</h2><p>输入本地配置的访问密钥。密钥只保存在当前页面内存中。</p><label for="accessKeyInput">访问密钥</label><input id="accessKeyInput" type="password" autocomplete="current-password" required/><p id="loginError" class="form-error" role="alert"></p><div class="dialog-actions"><button class="primary" type="submit">验证并连接</button></div></form></dialog>
+  <dialog id="securityDialog" aria-labelledby="securityTitle"><div class="dialog-eyebrow">ACCESS &amp; SECURITY</div><h2 id="securityTitle">访问与设备安全</h2><div class="security-item"><strong>本地面板</strong><p>默认仅本机访问。跨站请求被拒绝，局域网访问须配置访问密钥。凭据保存在本地配置中。</p></div><div class="security-item"><strong>云端设备权限尚未验证</strong><p>厂商 MQTT 服务使用共享凭据。本地面板的保护无法阻止第三方绕过面板向云端下发指令。</p><p>真正的设备隔离需要厂商提供专属凭据和主题权限，或在设备固件支持时迁移到自己的 Broker。</p></div><div class="dialog-actions"><button class="primary" type="button" data-close="securityDialog">我知道了</button></div></dialog>
 </body>
 </html>

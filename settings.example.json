@@ -1,0 +1,6 @@
+{
+  "mqttBroker": "mqtt://your-broker:1883",
+  "mqttUser": "your-user",
+  "mqttPass": "your-password",
+  "readOnly": true
+}

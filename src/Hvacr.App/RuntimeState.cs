@@ -9,7 +9,7 @@ public sealed class RuntimeState
     public double UptimeSeconds => _uptime.Elapsed.TotalSeconds;
 }
 
-public sealed class MqttConnectionState
+public sealed class MqttConnectionState(StatusUpdates? updates = null)
 {
     private readonly object _sync = new();
     private bool _connected;
@@ -34,6 +34,7 @@ public sealed class MqttConnectionState
             _connected = true;
             _lastError = null;
         }
+        updates?.Notify();
     }
 
     public void SetDisconnected(string? error)
@@ -43,5 +44,6 @@ public sealed class MqttConnectionState
             _connected = false;
             _lastError = string.IsNullOrWhiteSpace(error) ? "Connection closed" : error;
         }
+        updates?.Notify();
     }
 }

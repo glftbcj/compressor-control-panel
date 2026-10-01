@@ -13,219 +13,205 @@ public static class HvacrApplication
 {
     public static async Task<HvacrHost> StartAsync(HvacrAppOptions options, CancellationToken cancellationToken = default)
     {
+        options.Validate();
         Directory.CreateDirectory(options.DataDirectory);
-        Directory.CreateDirectory(options.WebViewUserDataDirectory);
-
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions
         {
             ContentRootPath = AppContext.BaseDirectory,
             ApplicationName = typeof(HvacrApplication).Assembly.GetName().Name
         });
-
         builder.WebHost.UseUrls(options.ListenUrl);
-        builder.Services.ConfigureHttpJsonOptions(jsonOptions =>
+        builder.WebHost.ConfigureKestrel(server => server.Limits.MaxRequestBodySize = 32_768);
+        builder.Services.ConfigureHttpJsonOptions(json =>
         {
-            jsonOptions.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-            jsonOptions.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            json.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+            json.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            json.SerializerOptions.MaxDepth = 32;
         });
         builder.Services.AddSingleton(options);
-        builder.Services.AddSingleton(new RuntimeState());
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<StatusUpdates>();
+        builder.Services.AddSingleton<RuntimeState>();
+        builder.Services.AddSingleton<LocalApiGuard>();
         builder.Services.AddSingleton<DeviceRegistry>();
         builder.Services.AddSingleton<KnownDeviceStore>();
+        builder.Services.AddSingleton<AppearanceStore>();
         builder.Services.AddSingleton<MqttConnectionState>();
+        builder.Services.AddSingleton<ControlModeState>();
+        builder.Services.AddSingleton<CommandCoordinator>();
         builder.Services.AddSingleton<IFileProvider>(_ => new ManifestEmbeddedFileProvider(typeof(HvacrApplication).Assembly, "public"));
-        builder.Services.AddSingleton<MqttBridgeService>();
-        builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<MqttBridgeService>());
+        if (options.Simulation)
+        {
+            builder.Services.AddSingleton<SimulationTransport>();
+            builder.Services.AddSingleton<ICommandTransport>(sp => sp.GetRequiredService<SimulationTransport>());
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<SimulationTransport>());
+        }
+        else
+        {
+            builder.Services.AddSingleton<MqttBridgeService>();
+            builder.Services.AddSingleton<ICommandTransport>(sp => sp.GetRequiredService<MqttBridgeService>());
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<MqttBridgeService>());
+        }
 
         var app = builder.Build();
-        MapApi(app);
+        app.Use(async (context, next) =>
+        {
+            context.Response.Headers.CacheControl = "no-store";
+            context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            context.Response.Headers["Referrer-Policy"] = "no-referrer";
+            context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+            if (!await context.RequestServices.GetRequiredService<LocalApiGuard>().ValidateAsync(context)) return;
+            try { await next(context); }
+            catch (ArgumentException) when (!context.Response.HasStarted)
+            {
+                context.Response.StatusCode = 400;
+                await context.Response.WriteAsJsonAsync(new { error = "设备列表格式无效：最多 100 台，ID 只允许 1–64 位字母、数字、下划线或短横线。" });
+            }
+            catch (IOException) when (!context.Response.HasStarted)
+            {
+                context.Response.StatusCode = 503;
+                await context.Response.WriteAsJsonAsync(new { error = "本地配置读写失败，原文件已保留。请检查数据目录。" });
+            }
+            catch (UnauthorizedAccessException) when (!context.Response.HasStarted)
+            {
+                context.Response.StatusCode = 503;
+                await context.Response.WriteAsJsonAsync(new { error = "无法访问本地数据目录，请检查目录权限。" });
+            }
+        });
+        MapApi(app, options);
         MapStaticFiles(app);
-        await app.StartAsync(cancellationToken);
-
+        try { await app.StartAsync(cancellationToken); }
+        catch { await app.DisposeAsync(); throw; }
         return new HvacrHost(app, options);
     }
 
-    private static void MapApi(WebApplication app)
+    private static void MapApi(WebApplication app, HvacrAppOptions options)
     {
-        app.MapGet("/api/health", (RuntimeState runtimeState) =>
-            Results.Json(new { ok = true, uptime = runtimeState.UptimeSeconds }));
-
-        app.MapGet("/api/status", (DeviceRegistry registry, MqttConnectionState connectionState) =>
+        app.MapGet("/api/config", (LocalApiGuard guard, ControlModeState mode) => Results.Json(new
         {
-            var status = connectionState.Snapshot();
-            return Results.Json(new
+            title = options.AppTitle,
+            sessionToken = guard.SessionToken,
+            simulation = options.Simulation,
+            readOnly = mode.ReadOnly,
+            telemetryMaxAgeMs = options.TelemetryMaxAge.TotalMilliseconds,
+            confirmationTimeoutMs = options.ConfirmationTimeout.TotalMilliseconds,
+            cloudAuthorizationVerified = false
+        }));
+        app.MapGet("/api/health", (RuntimeState runtime) => Results.Json(new { ok = true, uptime = runtime.UptimeSeconds }));
+        app.MapPut("/api/mode", (ControlModeRequest request, ControlModeState mode) =>
+        {
+            if (request.ReadOnly is null)
+                return Results.BadRequest(new { error = "需要指定 readOnly。" });
+            if (request.ReadOnly == false && !request.ConfirmEnable)
+                return Results.BadRequest(new { error = "启用控制需要明确确认。" });
+            mode.SetReadOnly(request.ReadOnly.Value);
+            return Results.Ok(new { readOnly = mode.ReadOnly });
+        });
+        object Status(DeviceRegistry registry, MqttConnectionState connection, CommandCoordinator commands, ControlModeState mode, StatusUpdates updates)
+        {
+            var status = connection.Snapshot();
+            var devices = registry.SnapshotList();
+            return new
             {
+                stateRevision = updates.Version,
                 connected = status.Connected,
+                readOnly = mode.ReadOnly,
                 lastError = status.LastError,
-                devices = registry.SnapshotList()
-            });
-        });
-
-        app.MapGet("/api/devices", (DeviceRegistry registry, MqttConnectionState connectionState) =>
+                serverTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                devices,
+                commands = devices.Select(d => new { deviceId = d.DeviceId, command = commands.Snapshot(d.DeviceId),
+                    setpoints = commands.SetpointsSnapshot(d.DeviceId) })
+            };
+        }
+        app.MapGet("/api/status", (DeviceRegistry registry, MqttConnectionState connection, CommandCoordinator commands, ControlModeState mode, StatusUpdates updates) =>
+            Results.Json(Status(registry, connection, commands, mode, updates)));
+        app.MapGet("/api/events", async (HttpContext context, DeviceRegistry registry, MqttConnectionState connection,
+            CommandCoordinator commands, ControlModeState mode, StatusUpdates updates) =>
         {
-            var status = connectionState.Snapshot();
-            return Results.Json(new
+            context.Response.ContentType = "text/event-stream; charset=utf-8";
+            context.Response.Headers["X-Accel-Buffering"] = "no";
+            var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
+            try
             {
-                connected = status.Connected,
-                devices = registry.SnapshotList()
-            });
-        });
-
-        app.MapGet("/api/preferences/devices", async (KnownDeviceStore store, CancellationToken cancellationToken) =>
-        {
-            var devices = await store.LoadAsync(cancellationToken);
-            return Results.Json(new KnownDevicesPayload { Devices = devices });
-        });
-
-        app.MapPut("/api/preferences/devices", async (KnownDevicesPayload payload, KnownDeviceStore store, CancellationToken cancellationToken) =>
-        {
-            var devices = await store.SaveAsync(payload.Devices, cancellationToken);
-            return Results.Json(new KnownDevicesPayload { Devices = devices });
-        });
-
-        app.MapPost("/api/control", async (ControlCommandRequest request, MqttBridgeService mqttBridge, CancellationToken cancellationToken) =>
-        {
-            var deviceId = request.DeviceId?.Trim();
-            if (string.IsNullOrWhiteSpace(deviceId))
-            {
-                return Results.BadRequest(new { error = "Missing deviceId" });
-            }
-
-            var action = request.Action?.Trim();
-            if (string.IsNullOrWhiteSpace(action))
-            {
-                return Results.BadRequest(new { error = "Missing action" });
-            }
-
-            if (!IsSupportedRequest(action, request.Value, out var validationError))
-            {
-                return Results.BadRequest(new { error = validationError });
-            }
-
-            var result = await mqttBridge.PublishAsync(deviceId, action, request.Value, cancellationToken);
-            if (!result.Success)
-            {
-                return Results.Json(new { error = result.Error ?? "Publish failed" }, statusCode: StatusCodes.Status500InternalServerError);
-            }
-
-            return Results.Json(new
-            {
-                success = true,
-                sent = new
+                while (!context.RequestAborted.IsCancellationRequested)
                 {
-                    topic = result.Topic,
-                    payload = result.Payload
+                    var version = updates.Version;
+                    var json = JsonSerializer.Serialize(Status(registry, connection, commands, mode, updates), jsonOptions);
+                    await context.Response.WriteAsync("data: " + json + "\n\n", context.RequestAborted);
+                    await context.Response.Body.FlushAsync(context.RequestAborted);
+                    await updates.WaitAsync(version, context.RequestAborted);
                 }
-            });
+            }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { }
         });
+        app.MapGet("/api/devices", (DeviceRegistry registry, MqttConnectionState connection) =>
+            Results.Json(new { connected = connection.Snapshot().Connected, devices = registry.SnapshotList() }));
+        app.MapGet("/api/preferences/devices", async (KnownDeviceStore store, CancellationToken ct) =>
+            Results.Json(new KnownDevicesPayload { Devices = await store.LoadAsync(ct) }));
+        app.MapGet("/api/preferences/appearance", async (AppearanceStore store, CancellationToken ct) =>
+        {
+            var appearance = await store.LoadAsync(ct);
+            return Results.Json(new { appearance.Theme, appearance.Accent, saved = store.Exists });
+        });
+        app.MapPut("/api/preferences/appearance", async (AppearanceSettings appearance, AppearanceStore store, CancellationToken ct) =>
+        {
+            try { return Results.Json(await store.SaveAsync(appearance, ct)); }
+            catch (ArgumentException) { return Results.BadRequest(new { error = "请选择有效的显示模式，并输入 # 开头的六位主颜色。" }); }
+        });
+        app.MapPut("/api/preferences/devices", async (KnownDevicesPayload payload, KnownDeviceStore store,
+            DeviceRegistry registry, CancellationToken ct) =>
+        {
+            var devices = await store.SaveAsync(payload.Devices, ct);
+            registry.KeepOnly(devices.Select(d => d.DeviceId));
+            if (!options.Simulation)
+            {
+                // Preferences persist even if the broker is offline; background sync will retry.
+                try { await app.Services.GetRequiredService<MqttBridgeService>().SyncSubscriptionsAsync(ct); }
+                catch (Exception) when (!ct.IsCancellationRequested) { }
+            }
+            return Results.Json(new KnownDevicesPayload { Devices = devices });
+        });
+        app.MapPost("/api/control", async (ControlCommandRequest request, CommandCoordinator commands, CancellationToken ct) =>
+        {
+            var result = await commands.ExecuteAsync(request, ct);
+            return Results.Json(new { result.Success, result.State, result.Message, result.CommandId,
+                error = result.Success ? null : result.Message }, statusCode: result.HttpStatus);
+        });
+        app.MapMethods("/api/{**path}", [HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Delete],
+            () => Results.NotFound(new { error = "接口不存在。" }));
     }
 
     private static void MapStaticFiles(WebApplication app)
     {
-        app.MapMethods("/{**path}", new[] { HttpMethods.Get }, async (string? path, IFileProvider fileProvider, HttpContext context) =>
+        app.MapGet("/{**path}", (string? path, IFileProvider provider) =>
         {
-            var normalizedPath = string.IsNullOrWhiteSpace(path) ? "index.html" : path.TrimStart('/');
-            var fileInfo = fileProvider.GetFileInfo(normalizedPath);
-
-            if (!fileInfo.Exists)
+            var normalized = string.IsNullOrWhiteSpace(path) ? "index.html" : path.TrimStart('/');
+            var file = provider.GetFileInfo(normalized);
+            if (!file.Exists || file.IsDirectory) return Results.NotFound();
+            var contentType = Path.GetExtension(normalized).ToLowerInvariant() switch
             {
-                if (Path.HasExtension(normalizedPath))
-                {
-                    return Results.NotFound();
-                }
-
-                fileInfo = fileProvider.GetFileInfo("index.html");
-            }
-
-            if (!fileInfo.Exists)
-            {
-                return Results.NotFound();
-            }
-
-            context.Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
-            context.Response.Headers.Pragma = "no-cache";
-            context.Response.Headers.Expires = "0";
-            return Results.File(fileInfo.CreateReadStream(), GetContentType(normalizedPath));
+                ".css" => "text/css; charset=utf-8", ".js" => "application/javascript; charset=utf-8",
+                ".json" => "application/json; charset=utf-8", ".svg" => "image/svg+xml",
+                ".png" => "image/png", ".ico" => "image/x-icon", _ => "text/html; charset=utf-8"
+            };
+            return Results.File(file.CreateReadStream(), contentType);
         });
     }
-
-    private static bool IsSupportedRequest(string action, JsonElement? value, out string? error)
-    {
-        error = null;
-        if (action is "setTemperature")
-        {
-            if (!TryReadNumber(value, out var number) || number < -20 || number > 50)
-            {
-                error = "Temperature out of range";
-                return false;
-            }
-        }
-        else if (action is "setWindSpeed")
-        {
-            if (!TryReadNumber(value, out var number) || number < 0 || number > 10)
-            {
-                error = "Wind speed out of range";
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static bool TryReadNumber(JsonElement? value, out decimal number)
-    {
-        number = 0;
-        if (!value.HasValue)
-        {
-            return false;
-        }
-
-        if (value.Value.ValueKind == JsonValueKind.Number && value.Value.TryGetDecimal(out number))
-        {
-            return true;
-        }
-
-        return value.Value.ValueKind == JsonValueKind.String
-            && decimal.TryParse(value.Value.GetString(), out number);
-    }
-
-    private static string GetContentType(string path)
-    {
-        return Path.GetExtension(path).ToLowerInvariant() switch
-        {
-            ".css" => "text/css; charset=utf-8",
-            ".js" => "application/javascript; charset=utf-8",
-            ".json" => "application/json; charset=utf-8",
-            ".svg" => "image/svg+xml",
-            ".png" => "image/png",
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".ico" => "image/x-icon",
-            _ => "text/html; charset=utf-8"
-        };
-    }
 }
 
-public sealed class HvacrHost : IAsyncDisposable
+public sealed class HvacrHost(WebApplication application, HvacrAppOptions options) : IAsyncDisposable
 {
-    private readonly WebApplication _application;
-
-    public HvacrHost(WebApplication application, HvacrAppOptions options)
-    {
-        _application = application;
-        Options = options;
-    }
-
-    public HvacrAppOptions Options { get; }
-    public Uri BaseAddress => new(Options.ListenUrl);
-
-    public Task WaitForShutdownAsync(CancellationToken cancellationToken = default)
-    {
-        return _application.WaitForShutdownAsync(cancellationToken);
-    }
-
+    private int _disposed;
+    public HvacrAppOptions Options { get; } = options;
+    public Uri BaseAddress => new(Options.IsLoopback ? Options.LoopbackUrl : Options.ListenUrl);
+    public Task WaitForShutdownAsync(CancellationToken ct = default) => application.WaitForShutdownAsync(ct);
     public async ValueTask DisposeAsync()
     {
-        await _application.StopAsync();
-        await _application.DisposeAsync();
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try { await application.StopAsync(timeout.Token); }
+        finally { await application.DisposeAsync(); }
     }
 }
+
